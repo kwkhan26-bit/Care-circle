@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CareCircle - simulated Alexa+ demo</title>
+<style>
+:root{--bg:#0b1220;--card:#131c31;--ink:#e8eefc;--mute:#8fa0c4;--cyan:#27d3ff;--ok:#3ddc97;--warn:#ffb020;--bad:#ff5d6c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#17305a,var(--bg));color:var(--ink);font:16px/1.45 system-ui,Segoe UI,sans-serif;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:24px;display:grid;grid-template-columns:1.1fr .9fr;gap:20px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+h1{margin:0 0 4px;font-size:26px}.sub{color:var(--mute);margin:0 0 16px}
+.card{background:var(--card);border:1px solid #22304f;border-radius:18px;padding:18px}
+.ring{height:6px;border-radius:6px;background:linear-gradient(90deg,var(--cyan),#5b8cff);margin-bottom:14px}
+#chat{height:420px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+.b{max-width:85%;padding:10px 14px;border-radius:14px}.u{align-self:flex-end;background:#1f3a6b}.a{align-self:flex-start;background:#0f2a3a;border:1px solid #1d4a63}
+.tool{font:12px ui-monospace,Consolas,monospace;color:var(--cyan);margin-top:6px;opacity:.9}
+form{display:flex;gap:8px;margin-top:12px}input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid #2a3a5e;background:#0d1628;color:var(--ink);font-size:16px}
+button{padding:12px 16px;border-radius:12px;border:0;background:var(--cyan);color:#021018;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;color:var(--mute);border:1px solid #2a3a5e;font-weight:500;padding:6px 10px;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.med{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1d2a47}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:700}
+.taken{background:#123b2b;color:var(--ok)}.overdue{background:#4a1d24;color:var(--bad)}.upcoming{background:#3b2f12;color:var(--warn)}
+pre{white-space:pre-wrap;font:12px ui-monospace,Consolas,monospace;color:#b6c6ea;margin:0;max-height:210px;overflow:auto}
+.mut{color:var(--mute);font-size:13px}
+</style></head><body>
+<div class="wrap">
+ <section class="card"><div class="ring"></div>
+  <h1>CareCircle <span class="mut">for Alexa+</span></h1>
+  <p class="sub">Simulated Alexa+ experience. Each message calls a real tool on the MCP server (<code>/mcp</code>, Streamable HTTP).</p>
+  <div id="chat"></div>
+  <form id="f"><input id="t" autocomplete="off" placeholder="Alexa, how is Mom doing today?"><button>Send</button></form>
+  <div class="chips" id="chips"></div>
+ </section>
+ <aside style="display:grid;gap:20px;align-content:start">
+  <div class="card"><b>Mom's medications today</b> <button class="ghost" id="reset" style="float:right">reset demo</button><div id="meds" style="margin-top:8px"></div></div>
+  <div class="card"><b>Live MCP tool call</b><div class="mut" style="margin:4px 0 8px" id="tn">waiting...</div><pre id="tj"></pre></div>
+ </aside>
+</div>
+<script>
+const chat=document.getElementById('chat'),t=document.getElementById('t');
+const samples=["Alexa, how is Mom doing today?","I'm Sara. Mom took her Metformin","I'm James. Did Mom take her Metformin?","Mom's mood is 2 today, she seems tired and quiet","Mom fell in the kitchen, I'm worried","I'm Sara, handing over to James"];
+const chips=document.getElementById('chips');
+samples.forEach(s=>{const b=document.createElement('button');b.className='ghost';b.textContent=s;b.onclick=()=>say(s);chips.appendChild(b)});
+function add(c,h){const d=document.createElement('div');d.className='b '+c;d.innerHTML=h;chat.appendChild(d);chat.scrollTop=1e9}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function meds(){const r=await fetch('/api/say',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'schedule for Mom'})});const j=await r.json();
+ document.getElementById('meds').innerHTML=j.result.schedule.map(m=>`<div class="med"><div><b>${esc(m.medication)}</b> ${esc(m.dose)}<div class="mut">${m.scheduled}${m.taken_confirmed_by?' · confirmed by '+esc(m.taken_confirmed_by):''}</div></div><span class="pill ${m.status}">${m.status}</span></div>`).join('')}
+async function say(x){add('u',esc(x));t.value='';
+ const r=await fetch('/api/say',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:x})});const j=await r.json();
+ add('a',esc(j.reply)+`<div class="tool">MCP tool: ${j.tool}(${esc(JSON.stringify(j.args)).slice(0,90)})</div>`);
+ document.getElementById('tn').textContent='tools/call → '+j.tool;document.getElementById('tj').textContent=JSON.stringify(j.result,null,2);meds()}
+document.getElementById('f').onsubmit=e=>{e.preventDefault();if(t.value.trim())say(t.value)};
+document.getElementById('reset').onclick=async()=>{await fetch('/api/reset',{method:'POST'});chat.innerHTML='';meds()};
+add('a','Hi, I\'m the CareCircle skill. Ask how Mom is doing, log a dose, or hand over care to another family member.');meds();
+</script></body></html>
